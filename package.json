@@ -1,0 +1,26 @@
+{
+  "name": "iyte-discord-bot",
+  "version": "1.0.0",
+  "description": "YKS Çalışma Asistanı Discord Botu - Geri sayım, ses takibi, to-do, chain ve istatistikler",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "register": "node src/deploy-commands.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "yks",
+    "iyte"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.1",
+    "node-cron": "^3.0.3"
+  }
+}
