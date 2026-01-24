@@ -245,6 +245,11 @@ export function updateTodoStatus(messageId, status) {
     return statements.updateTodoStatus.run(status, messageId);
 }
 
+export function updateTodoContent(messageId, content) {
+    const stmt = db.prepare('UPDATE todos SET content = ? WHERE message_id = ?');
+    return stmt.run(content, messageId);
+}
+
 export function getUserTodoStats(guildId, userId) {
     return statements.getUserTodoStats.get(guildId, userId);
 }

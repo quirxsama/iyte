@@ -44,7 +44,12 @@ export async function execute(message) {
                     .setCustomId('todo_failed')
                     .setLabel('Başarısız')
                     .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌')
+                    .setEmoji('❌'),
+                new ButtonBuilder()
+                    .setCustomId('todo_edit')
+                    .setLabel('Düzenle')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('✏️')
             );
         
         const embed = createTodoEmbed(content, 'pending');

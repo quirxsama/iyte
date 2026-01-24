@@ -1,5 +1,5 @@
-import { Collection } from 'discord.js';
-import { getTodoByMessageId, updateTodoStatus } from '../database/db.js';
+import { Collection, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { getTodoByMessageId, updateTodoStatus, updateTodoContent } from '../database/db.js';
 import { createTodoEmbed } from '../utils/embed.js';
 
 export const name = 'interactionCreate';
@@ -59,7 +59,7 @@ export async function execute(interaction, client) {
     else if (interaction.isButton()) {
         const customId = interaction.customId;
         
-        // To-do butonları
+        // To-do tamamla/başarısız butonları
         if (customId === 'todo_complete' || customId === 'todo_failed') {
             const messageId = interaction.message.id;
             const todo = getTodoByMessageId(messageId);
@@ -94,6 +94,120 @@ export async function execute(interaction, client) {
                 embeds: [embed],
                 components: []
             });
+        }
+        
+        // To-do düzenle butonu
+        else if (customId === 'todo_edit') {
+            const messageId = interaction.message.id;
+            const todo = getTodoByMessageId(messageId);
+            
+            if (!todo) {
+                return interaction.reply({
+                    content: '❌ Bu to-do bulunamadı!',
+                    ephemeral: true
+                });
+            }
+            
+            // Sadece oluşturan kişi ya da yönetici değiştirebilir
+            if (todo.user_id !== interaction.user.id && 
+                !interaction.member.permissions.has('ManageMessages')) {
+                return interaction.reply({
+                    content: '❌ Bu to-do\'yu sadece oluşturan kişi düzenleyebilir!',
+                    ephemeral: true
+                });
+            }
+            
+            // Modal oluştur
+            const modal = new ModalBuilder()
+                .setCustomId(`todo_edit_modal_${messageId}`)
+                .setTitle('📝 To-Do Düzenle');
+            
+            const contentInput = new TextInputBuilder()
+                .setCustomId('todo_content')
+                .setLabel('Yeni İçerik')
+                .setStyle(TextInputStyle.Paragraph)
+                .setValue(todo.content)
+                .setPlaceholder('To-do içeriğini yazın...')
+                .setRequired(true)
+                .setMaxLength(1000);
+            
+            const row = new ActionRowBuilder().addComponents(contentInput);
+            modal.addComponents(row);
+            
+            await interaction.showModal(modal);
+        }
+    }
+    
+    // Modal submit
+    else if (interaction.isModalSubmit()) {
+        const customId = interaction.customId;
+        
+        // To-do düzenleme modal'ı
+        if (customId.startsWith('todo_edit_modal_')) {
+            const messageId = customId.replace('todo_edit_modal_', '');
+            const newContent = interaction.fields.getTextInputValue('todo_content');
+            
+            const todo = getTodoByMessageId(messageId);
+            
+            if (!todo) {
+                return interaction.reply({
+                    content: '❌ Bu to-do bulunamadı!',
+                    ephemeral: true
+                });
+            }
+            
+            // Veritabanını güncelle
+            updateTodoContent(messageId, newContent);
+            
+            // Embed'i güncelle
+            const embed = createTodoEmbed(newContent, todo.status);
+            embed.setFooter({ 
+                text: `${interaction.user.username} tarafından düzenlendi` 
+            });
+            
+            // Butonları yeniden oluştur (eğer pending ise)
+            let components = [];
+            if (todo.status === 'pending') {
+                const row = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('todo_complete')
+                            .setLabel('Tamamlandı')
+                            .setStyle(ButtonStyle.Success)
+                            .setEmoji('✅'),
+                        new ButtonBuilder()
+                            .setCustomId('todo_failed')
+                            .setLabel('Başarısız')
+                            .setStyle(ButtonStyle.Danger)
+                            .setEmoji('❌'),
+                        new ButtonBuilder()
+                            .setCustomId('todo_edit')
+                            .setLabel('Düzenle')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setEmoji('✏️')
+                    );
+                components = [row];
+            }
+            
+            // Orijinal mesajı güncelle
+            try {
+                const message = await interaction.channel.messages.fetch(messageId);
+                await message.edit({
+                    embeds: [embed],
+                    components: components
+                });
+                
+                await interaction.reply({
+                    content: '✅ To-do başarıyla güncellendi!',
+                    ephemeral: true
+                });
+            } catch (error) {
+                console.error('To-do güncellenemedi:', error);
+                await interaction.reply({
+                    content: '❌ To-do güncellenirken bir hata oluştu!',
+                    ephemeral: true
+                });
+            }
         }
     }
 }
