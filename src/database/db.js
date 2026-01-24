@@ -87,6 +87,13 @@ db.exec(`
         channel_id TEXT,
         PRIMARY KEY (guild_id, channel_id)
     );
+
+    -- Ders ses kanalları (istatistiklerde ayrı sayılacak)
+    CREATE TABLE IF NOT EXISTS study_voice_channels (
+        guild_id TEXT,
+        channel_id TEXT,
+        PRIMARY KEY (guild_id, channel_id)
+    );
 `);
 
 // Prepared statements
@@ -263,6 +270,27 @@ export function isTodoChannel(guildId, channelId) {
     return stmt.get(guildId, channelId) !== undefined;
 }
 
+// Ders ses kanalları fonksiyonları
+export function addStudyVoiceChannel(guildId, channelId) {
+    const stmt = db.prepare('INSERT OR IGNORE INTO study_voice_channels (guild_id, channel_id) VALUES (?, ?)');
+    return stmt.run(guildId, channelId);
+}
+
+export function removeStudyVoiceChannel(guildId, channelId) {
+    const stmt = db.prepare('DELETE FROM study_voice_channels WHERE guild_id = ? AND channel_id = ?');
+    return stmt.run(guildId, channelId);
+}
+
+export function getStudyVoiceChannels(guildId) {
+    const stmt = db.prepare('SELECT channel_id FROM study_voice_channels WHERE guild_id = ?');
+    return stmt.all(guildId).map(row => row.channel_id);
+}
+
+export function isStudyVoiceChannel(guildId, channelId) {
+    const stmt = db.prepare('SELECT 1 FROM study_voice_channels WHERE guild_id = ? AND channel_id = ?');
+    return stmt.get(guildId, channelId) !== undefined;
+}
+
 // Chain functions
 export function getChain(guildId, userId) {
     return statements.getChain.get(guildId, userId);
@@ -303,12 +331,140 @@ export function getTodayStudyTime(guildId, userId) {
     return statements.getTodayStudyTime.get(guildId, userId, today).total;
 }
 
+export function getYesterdayStudyTime(guildId, userId) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    return statements.getTodayStudyTime.get(guildId, userId, yesterdayStr)?.total || 0;
+}
+
 export function getUserTotalStudyTime(guildId, userId) {
     return statements.getUserTotalStudyTime.get(guildId, userId).total;
 }
 
 export function getLast7DaysStudy(guildId, userId) {
     return statements.getLast7DaysStudy.all(guildId, userId);
+}
+
+// Tüm kullanıcıların istatistiklerini al (günlük özet için)
+export function getAllUsersStats(guildId) {
+    const users = new Set();
+    
+    // Ses oturumlarından kullanıcıları al
+    const voiceUsers = db.prepare('SELECT DISTINCT user_id FROM voice_sessions WHERE guild_id = ?').all(guildId);
+    voiceUsers.forEach(u => users.add(u.user_id));
+    
+    // Ders çalışma kayıtlarından kullanıcıları al
+    const studyUsers = db.prepare('SELECT DISTINCT user_id FROM study_sessions WHERE guild_id = ?').all(guildId);
+    studyUsers.forEach(u => users.add(u.user_id));
+    
+    // Chain kayıtlarından kullanıcıları al
+    const chainUsers = db.prepare('SELECT DISTINCT user_id FROM chains WHERE guild_id = ?').all(guildId);
+    chainUsers.forEach(u => users.add(u.user_id));
+    
+    // To-do kayıtlarından kullanıcıları al
+    const todoUsers = db.prepare('SELECT DISTINCT user_id FROM todos WHERE guild_id = ?').all(guildId);
+    todoUsers.forEach(u => users.add(u.user_id));
+    
+    return Array.from(users);
+}
+
+// Belirli kullanıcının detaylı istatistiklerini al
+export function getUserDetailedStats(guildId, userId) {
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    
+    // Ders ses kanallarını al
+    const studyChannels = getStudyVoiceChannels(guildId);
+    
+    // Ses istatistikleri - Ders kanalları
+    let studyVoiceTotal = 0;
+    let studyVoiceToday = 0;
+    
+    // Ses istatistikleri - Diğer kanallar
+    let otherVoiceTotal = 0;
+    let otherVoiceToday = 0;
+    
+    // Toplam ses süreleri
+    const allVoiceSessions = db.prepare(`
+        SELECT channel_id, COALESCE(SUM(duration_seconds), 0) as total
+        FROM voice_sessions 
+        WHERE guild_id = ? AND user_id = ?
+        GROUP BY channel_id
+    `).all(guildId, userId);
+    
+    for (const session of allVoiceSessions) {
+        if (studyChannels.includes(session.channel_id)) {
+            studyVoiceTotal += session.total;
+        } else {
+            otherVoiceTotal += session.total;
+        }
+    }
+    
+    // Bugünkü ses süreleri
+    const todayVoiceSessions = db.prepare(`
+        SELECT channel_id, COALESCE(SUM(duration_seconds), 0) as total
+        FROM voice_sessions 
+        WHERE guild_id = ? AND user_id = ? AND date(start_time/1000, 'unixepoch', 'localtime') = ?
+        GROUP BY channel_id
+    `).all(guildId, userId, today);
+    
+    for (const session of todayVoiceSessions) {
+        if (studyChannels.includes(session.channel_id)) {
+            studyVoiceToday += session.total;
+        } else {
+            otherVoiceToday += session.total;
+        }
+    }
+    
+    // Ders çalışma istatistikleri
+    const totalStudy = statements.getUserTotalStudyTime.get(guildId, userId)?.total || 0;
+    const todayStudy = statements.getTodayStudyTime.get(guildId, userId, today)?.total || 0;
+    const yesterdayStudy = statements.getTodayStudyTime.get(guildId, userId, yesterdayStr)?.total || 0;
+    
+    // Chain
+    const chain = statements.getChain.get(guildId, userId);
+    
+    // To-do istatistikleri
+    const todoStats = statements.getUserTodoStats.get(guildId, userId);
+    
+    // Son 7 gün ortalaması
+    const last7Days = statements.getLast7DaysStudy.all(guildId, userId);
+    const weeklyTotal = last7Days.reduce((sum, d) => sum + d.total, 0);
+    const weeklyAvg = last7Days.length > 0 ? Math.round(weeklyTotal / last7Days.length) : 0;
+    
+    return {
+        voice: {
+            studyTotal: studyVoiceTotal,
+            studyToday: studyVoiceToday,
+            otherTotal: otherVoiceTotal,
+            otherToday: otherVoiceToday,
+            total: studyVoiceTotal + otherVoiceTotal,
+            today: studyVoiceToday + otherVoiceToday
+        },
+        study: {
+            total: totalStudy,
+            today: todayStudy,
+            yesterday: yesterdayStudy,
+            weeklyAvg: weeklyAvg
+        },
+        chain: {
+            current: chain?.chain_count || 0,
+            best: chain?.best_chain || 0,
+            lastUpdate: chain?.last_update || null
+        },
+        todos: {
+            total: todoStats?.total || 0,
+            completed: todoStats?.completed || 0,
+            failed: todoStats?.failed || 0,
+            pending: todoStats?.pending || 0,
+            completionRate: todoStats?.total > 0 
+                ? Math.round((todoStats.completed / todoStats.total) * 100) 
+                : 0
+        }
+    };
 }
 
 export default db;

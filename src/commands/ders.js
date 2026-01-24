@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { addStudySession, getTodayStudyTime, getLast7DaysStudy } from '../database/db.js';
+import { addStudySession, getTodayStudyTime, getYesterdayStudyTime, getLast7DaysStudy } from '../database/db.js';
 import { createSuccessEmbed, createInfoEmbed, formatMinutes } from '../utils/embed.js';
 
 export const data = new SlashCommandBuilder()
@@ -8,14 +8,12 @@ export const data = new SlashCommandBuilder()
     .addSubcommand(subcommand =>
         subcommand
             .setName('ekle')
-            .setDescription('Ders çalışma süresi ekle')
-            .addIntegerOption(option =>
+            .setDescription('Ders çalışma süresi ekle (dakika veya saat:dakika)')
+            .addStringOption(option =>
                 option
-                    .setName('dakika')
-                    .setDescription('Çalıştığın süre (dakika)')
+                    .setName('süre')
+                    .setDescription('Çalıştığın süre (örn: 90 veya 1:30)')
                     .setRequired(true)
-                    .setMinValue(1)
-                    .setMaxValue(1440)
             )
     )
     .addSubcommand(subcommand =>
@@ -29,6 +27,27 @@ export const data = new SlashCommandBuilder()
             .setDescription('Son 7 günlük çalışma süresini göster')
     );
 
+// Süre parse fonksiyonu: "90" veya "1:30" formatını dakikaya çevirir
+function parseDuration(input) {
+    const trimmed = input.trim();
+    
+    // Saat:Dakika formatı (örn: 1:30, 2:45)
+    if (trimmed.includes(':')) {
+        const [hours, mins] = trimmed.split(':').map(Number);
+        if (isNaN(hours) || isNaN(mins) || hours < 0 || mins < 0 || mins >= 60) {
+            return null;
+        }
+        return (hours * 60) + mins;
+    }
+    
+    // Sadece dakika (örn: 90, 120)
+    const minutes = parseInt(trimmed, 10);
+    if (isNaN(minutes) || minutes < 1 || minutes > 1440) {
+        return null;
+    }
+    return minutes;
+}
+
 export async function execute(interaction) {
     const subcommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
@@ -36,7 +55,20 @@ export async function execute(interaction) {
     
     switch (subcommand) {
         case 'ekle': {
-            const minutes = interaction.options.getInteger('dakika');
+            const input = interaction.options.getString('süre');
+            const minutes = parseDuration(input);
+            
+            if (minutes === null) {
+                return interaction.reply({
+                    content: '❌ Geçersiz süre formatı! Örnek: `90` (dakika) veya `1:30` (saat:dakika)',
+                    ephemeral: true
+                });
+            }
+            
+            // Dünkü süreyi al (karşılaştırma için)
+            const yesterdayTotal = getYesterdayStudyTime(guildId, userId);
+            const beforeAdd = getTodayStudyTime(guildId, userId);
+            
             addStudySession(guildId, userId, minutes);
             
             const todayTotal = getTodayStudyTime(guildId, userId);
@@ -50,8 +82,38 @@ export async function execute(interaction) {
                 inline: true
             });
             
+            // Düne göre karşılaştırma
+            if (yesterdayTotal > 0) {
+                const diff = todayTotal - yesterdayTotal;
+                if (diff > 0) {
+                    embed.addFields({
+                        name: '📈 Düne Göre',
+                        value: `+${formatMinutes(diff)} daha fazla çalıştın! 🎉`,
+                        inline: true
+                    });
+                } else if (diff < 0) {
+                    embed.addFields({
+                        name: '📉 Düne Göre',
+                        value: `${formatMinutes(Math.abs(diff))} daha az. Hadi biraz daha!`,
+                        inline: true
+                    });
+                } else {
+                    embed.addFields({
+                        name: '📊 Düne Göre',
+                        value: 'Dünle aynı seviyedesin!',
+                        inline: true
+                    });
+                }
+            }
+            
             // Motivasyon mesajı
-            if (todayTotal >= 360) { // 6 saat
+            if (todayTotal >= 480) { // 8 saat
+                embed.addFields({
+                    name: '👑 Efsane!',
+                    value: 'Bugün 8 saatten fazla çalıştın! Gerçek bir şampiyon!',
+                    inline: false
+                });
+            } else if (todayTotal >= 360) { // 6 saat
                 embed.addFields({
                     name: '🏆 Harika!',
                     value: 'Bugün 6 saatten fazla çalıştın! Mükemmel!',
@@ -71,11 +133,20 @@ export async function execute(interaction) {
         
         case 'bugün': {
             const todayTotal = getTodayStudyTime(guildId, userId);
+            const yesterdayTotal = getYesterdayStudyTime(guildId, userId);
             
-            const embed = createInfoEmbed(
-                'Bugünkü Çalışma',
-                `📚 Bugün toplam **${formatMinutes(todayTotal)}** ders çalıştın.`
-            );
+            let description = `📚 Bugün toplam **${formatMinutes(todayTotal)}** ders çalıştın.`;
+            
+            if (yesterdayTotal > 0) {
+                const diff = todayTotal - yesterdayTotal;
+                if (diff > 0) {
+                    description += `\n📈 Düne göre **${formatMinutes(diff)}** daha fazla!`;
+                } else if (diff < 0) {
+                    description += `\n📉 Düne göre **${formatMinutes(Math.abs(diff))}** daha az.`;
+                }
+            }
+            
+            const embed = createInfoEmbed('Bugünkü Çalışma', description);
             
             await interaction.reply({ embeds: [embed] });
             break;

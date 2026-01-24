@@ -21,6 +21,17 @@ export const data = new SlashCommandBuilder()
             .setDescription('Zincir durumunu göster')
     );
 
+// Mesajı 5 saniye sonra sil
+async function deleteAfterDelay(interaction, delay = 5000) {
+    setTimeout(async () => {
+        try {
+            await interaction.deleteReply();
+        } catch (error) {
+            // Mesaj zaten silinmiş olabilir
+        }
+    }, delay);
+}
+
 export async function execute(interaction) {
     const subcommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
@@ -34,14 +45,16 @@ export async function execute(interaction) {
                 result.best_chain,
                 result.last_update
             );
-            await interaction.reply({ embeds: [embed] });
+            await interaction.reply({ embeds: [embed], ephemeral: true });
+            deleteAfterDelay(interaction);
             break;
         }
         
         case 'kır': {
             const result = breakChain(guildId, userId);
             const embed = createChainEmbed(0, result.best_chain, '', true);
-            await interaction.reply({ embeds: [embed] });
+            await interaction.reply({ embeds: [embed], ephemeral: true });
+            deleteAfterDelay(interaction);
             break;
         }
         
@@ -60,14 +73,16 @@ export async function execute(interaction) {
                         inline: true 
                     });
                 }
-                await interaction.reply({ embeds: [embed] });
+                await interaction.reply({ embeds: [embed], ephemeral: true });
+                deleteAfterDelay(interaction);
             } else {
                 const embed = createChainEmbed(
                     chain.chain_count,
                     chain.best_chain,
                     chain.last_update
                 );
-                await interaction.reply({ embeds: [embed] });
+                await interaction.reply({ embeds: [embed], ephemeral: true });
+                deleteAfterDelay(interaction);
             }
             break;
         }

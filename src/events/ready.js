@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { sendDailyCountdown } from '../modules/countdown.js';
+import { sendDailyStats } from '../modules/dailyStats.js';
 
 export const name = 'ready';
 export const once = true;
@@ -14,13 +15,16 @@ export async function execute(client) {
         status: 'online'
     });
     
-    // Her gün saat 08:00'da YKS geri sayımı gönder
-    cron.schedule('0 8 * * *', () => {
+    // Her gün saat 08:00'da YKS geri sayımı ve günlük istatistikler gönder
+    cron.schedule('0 8 * * *', async () => {
         console.log('📅 Günlük YKS geri sayımı gönderiliyor...');
-        sendDailyCountdown(client);
+        await sendDailyCountdown(client);
+        
+        console.log('📊 Günlük istatistikler gönderiliyor...');
+        await sendDailyStats(client);
     }, {
         timezone: 'Europe/Istanbul'
     });
     
-    console.log('⏰ Günlük geri sayım zamanlandı (08:00)');
+    console.log('⏰ Günlük geri sayım ve istatistikler zamanlandı (08:00)');
 }
