@@ -9,7 +9,7 @@ import {
 // Sert motivasyon mesajları - Chain eklenmemiş
 const chainMessages = [
     'Bugün chain eklemedin. YKS\'yi mi saldın? 🤡',
-    'Chain 0. Rakiplerin çalışırken sen ne yapıyorsun?',
+    'Chain 0. Timur çalışırken sen ne yapıyorsun?',
     'Bugün zincirini kırdın. Yarın da kıracak mısın yoksa adam mı olacaksın?',
     'Chain yok. Hedef İYTE diyordun, yoksa şaka mıydı? 😏',
     'Bugün chain eklememişsin. Disiplin sıfır. Böyle YKS kazanılmaz.',
@@ -17,7 +17,7 @@ const chainMessages = [
     'Chain eklemeyi unuttun mu? Yoksa tembellik mi bu?',
     'Bugün chain yok. Bu gidişle seneye tekrar hazırlık var.',
     'Zincir? Hangi zincir? Bugün hiçbir şey yapmamışsın.',
-    'Chain eklemeden yatağa mı giriyorsun? Rakiplerin şu an test çözüyor.'
+    'Chain eklemeden yatağa mı giriyorsun? Timur şu an test çözüyor.'
 ];
 
 // Sert motivasyon mesajları - Ders çalışılmamış
@@ -29,7 +29,7 @@ const studyMessages = [
     'Sıfır dakika çalışma. Böyle giderse İYTE değil, pişmanlık seni bekliyor.',
     'Bugün tek bir dakika bile çalışmamışsın. Bu tembellik değilse ne?',
     'Ders çalışmadan yatıyorsun. Yarın "keşke çalışsaydım" diyeceksin.',
-    'Çalışma süresi: 0. Rakiplerin bugün saatlerce çalıştı. Sen?',
+    'Çalışma süresi: 0. Timur bugün saatlerce çalıştı. Sen?',
     'Hiç çalışmamışsın. Bu gidişle YKS\'de sürpriz olmaz, hayal kırıklığı olur.',
     'Bugün 0 dk ders. Hedef İYTE ama çaba nerede? 🎯'
 ];
