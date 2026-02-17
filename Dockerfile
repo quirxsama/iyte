@@ -11,6 +11,9 @@ WORKDIR /app
 # Package ve lock dosyalarını kopyala
 COPY package.json pnpm-lock.yaml ./
 
+# better-sqlite3 build scriptlerini etkinleştir
+RUN echo "onlyBuiltDependencies=better-sqlite3" > .npmrc
+
 # Bağımlılıkları yükle
 RUN pnpm install --frozen-lockfile --prod
 
