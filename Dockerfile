@@ -1,21 +1,17 @@
 # Node.js LTS Alpine Image
 FROM node:20-alpine
 
-# better-sqlite3 için build araçları + pnpm
-RUN apk add --no-cache python3 make g++ && \
-    corepack enable && corepack prepare pnpm@latest --activate
+# better-sqlite3 için build araçları
+RUN apk add --no-cache python3 make g++
 
 # Çalışma dizini
 WORKDIR /app
 
-# Package ve lock dosyalarını kopyala
-COPY package.json pnpm-lock.yaml ./
+# Package dosyasını kopyala
+COPY package.json ./
 
-# better-sqlite3 build scriptlerini etkinleştir
-RUN echo "onlyBuiltDependencies=better-sqlite3" > .npmrc
-
-# Bağımlılıkları yükle
-RUN pnpm install --frozen-lockfile --prod
+# Bağımlılıkları yükle (npm install — lock dosyası gerektirmez)
+RUN npm install --omit=dev
 
 # Kaynak kodları kopyala
 COPY . .
@@ -24,4 +20,4 @@ COPY . .
 VOLUME ["/app/data"]
 
 # Botu başlat
-CMD ["pnpm", "start"]
+CMD ["npm", "start"]
