@@ -94,6 +94,24 @@ db.exec(`
         channel_id TEXT,
         PRIMARY KEY (guild_id, channel_id)
     );
+
+    -- Tekrar sistemi (spaced repetition)
+    CREATE TABLE IF NOT EXISTS review_topics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id TEXT,
+        user_id TEXT,
+        topic TEXT,
+        created_at TEXT,
+        d1_date TEXT,
+        d7_date TEXT,
+        d14_date TEXT,
+        d30_date TEXT,
+        d1_done INTEGER DEFAULT 0,
+        d7_done INTEGER DEFAULT 0,
+        d14_done INTEGER DEFAULT 0,
+        d30_done INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active'
+    );
 `);
 
 // Prepared statements
@@ -250,6 +268,11 @@ export function updateTodoContent(messageId, content) {
     return stmt.run(content, messageId);
 }
 
+export function deleteTodo(messageId) {
+    const stmt = db.prepare('DELETE FROM todos WHERE message_id = ?');
+    return stmt.run(messageId);
+}
+
 export function getUserTodoStats(guildId, userId) {
     return statements.getUserTodoStats.get(guildId, userId);
 }
@@ -326,9 +349,9 @@ export function breakChain(guildId, userId) {
 }
 
 // Study session functions
-export function addStudySession(guildId, userId, durationMinutes) {
-    const today = new Date().toISOString().split('T')[0];
-    return statements.addStudySession.run(guildId, userId, durationMinutes, today, Date.now());
+export function addStudySession(guildId, userId, durationMinutes, date = null) {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    return statements.addStudySession.run(guildId, userId, durationMinutes, targetDate, Date.now());
 }
 
 export function getTodayStudyTime(guildId, userId) {
@@ -470,6 +493,89 @@ export function getUserDetailedStats(guildId, userId) {
                 : 0
         }
     };
+}
+
+// === Tekrar Sistemi (Spaced Repetition) ===
+export function addReviewTopic(guildId, userId, topic) {
+    const now = new Date();
+    const createdAt = now.toISOString().split('T')[0];
+    
+    const addDays = (date, days) => {
+        const d = new Date(date);
+        d.setDate(d.getDate() + days);
+        return d.toISOString().split('T')[0];
+    };
+    
+    const d1 = addDays(now, 1);
+    const d7 = addDays(now, 7);
+    const d14 = addDays(now, 14);
+    const d30 = addDays(now, 30);
+    
+    const stmt = db.prepare(`
+        INSERT INTO review_topics (guild_id, user_id, topic, created_at, d1_date, d7_date, d14_date, d30_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(guildId, userId, topic, createdAt, d1, d7, d14, d30);
+}
+
+export function getReviewTopicsByUser(guildId, userId) {
+    const stmt = db.prepare(`
+        SELECT * FROM review_topics 
+        WHERE guild_id = ? AND user_id = ? AND status = 'active'
+        ORDER BY created_at DESC
+    `);
+    return stmt.all(guildId, userId);
+}
+
+export function getDueReviews(guildId, userId, date = null) {
+    const today = date || new Date().toISOString().split('T')[0];
+    const stmt = db.prepare(`
+        SELECT * FROM review_topics 
+        WHERE guild_id = ? AND user_id = ? AND status = 'active'
+        AND (
+            (d1_date = ? AND d1_done = 0) OR
+            (d7_date = ? AND d7_done = 0) OR
+            (d14_date = ? AND d14_done = 0) OR
+            (d30_date = ? AND d30_done = 0)
+        )
+        ORDER BY created_at ASC
+    `);
+    return stmt.all(guildId, userId, today, today, today, today);
+}
+
+export function getAllDueReviewsToday(date = null) {
+    const today = date || new Date().toISOString().split('T')[0];
+    const stmt = db.prepare(`
+        SELECT * FROM review_topics 
+        WHERE status = 'active'
+        AND (
+            (d1_date = ? AND d1_done = 0) OR
+            (d7_date = ? AND d7_done = 0) OR
+            (d14_date = ? AND d14_done = 0) OR
+            (d30_date = ? AND d30_done = 0)
+        )
+        ORDER BY user_id, created_at ASC
+    `);
+    return stmt.all(today, today, today, today);
+}
+
+export function markReviewDone(topicId, interval) {
+    const column = `d${interval}_done`;
+    const validColumns = ['d1_done', 'd7_done', 'd14_done', 'd30_done'];
+    if (!validColumns.includes(column)) return null;
+    
+    const stmt = db.prepare(`UPDATE review_topics SET ${column} = 1 WHERE id = ?`);
+    return stmt.run(topicId);
+}
+
+export function deleteReviewTopic(topicId, userId) {
+    const stmt = db.prepare('DELETE FROM review_topics WHERE id = ? AND user_id = ?');
+    return stmt.run(topicId, userId);
+}
+
+export function getReviewTopicById(topicId) {
+    const stmt = db.prepare('SELECT * FROM review_topics WHERE id = ?');
+    return stmt.get(topicId);
 }
 
 export default db;

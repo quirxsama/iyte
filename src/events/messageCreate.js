@@ -46,6 +46,11 @@ export async function execute(message) {
                     .setStyle(ButtonStyle.Danger)
                     .setEmoji('❌'),
                 new ButtonBuilder()
+                    .setCustomId('todo_cancel')
+                    .setLabel('İptal')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('🗑️'),
+                new ButtonBuilder()
                     .setCustomId('todo_edit')
                     .setLabel('Düzenle')
                     .setStyle(ButtonStyle.Secondary)

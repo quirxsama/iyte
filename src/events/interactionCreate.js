@@ -1,5 +1,5 @@
 import { Collection, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { getTodoByMessageId, updateTodoStatus, updateTodoContent } from '../database/db.js';
+import { getTodoByMessageId, updateTodoStatus, updateTodoContent, deleteTodo, markReviewDone, getReviewTopicById } from '../database/db.js';
 import { createTodoEmbed } from '../utils/embed.js';
 
 export const name = 'interactionCreate';
@@ -96,6 +96,44 @@ export async function execute(interaction, client) {
             });
         }
         
+        // To-do iptal butonu
+        else if (customId === 'todo_cancel') {
+            const messageId = interaction.message.id;
+            const todo = getTodoByMessageId(messageId);
+            
+            if (!todo) {
+                return interaction.reply({
+                    content: '❌ Bu to-do bulunamadı!',
+                    ephemeral: true
+                });
+            }
+            
+            // Sadece oluşturan kişi ya da yönetici iptal edebilir
+            if (todo.user_id !== interaction.user.id && 
+                !interaction.member.permissions.has('ManageMessages')) {
+                return interaction.reply({
+                    content: '❌ Bu to-do\'yu sadece oluşturan kişi iptal edebilir!',
+                    ephemeral: true
+                });
+            }
+            
+            // Veritabanından sil
+            deleteTodo(messageId);
+            
+            // Mesajı sil
+            try {
+                await interaction.message.delete();
+            } catch (error) {
+                console.error('To-do mesajı silinemedi:', error.message);
+            }
+            
+            // Bildirim gönder (ephemeral)
+            await interaction.reply({
+                content: '🗑️ To-do iptal edildi ve silindi.',
+                ephemeral: true
+            });
+        }
+        
         // To-do düzenle butonu
         else if (customId === 'todo_edit') {
             const messageId = interaction.message.id;
@@ -135,6 +173,46 @@ export async function execute(interaction, client) {
             modal.addComponents(row);
             
             await interaction.showModal(modal);
+        }
+        
+        // Tekrar sistemi - tamamlama butonu
+        else if (customId.startsWith('review_done_')) {
+            const parts = customId.split('_');
+            const topicId = parseInt(parts[2]);
+            const interval = parts[3];
+            
+            const topic = getReviewTopicById(topicId);
+            if (!topic) {
+                return interaction.reply({
+                    content: '❌ Bu tekrar konusu bulunamadı!',
+                    ephemeral: true
+                });
+            }
+            
+            if (topic.user_id !== interaction.user.id) {
+                return interaction.reply({
+                    content: '❌ Bu tekrar konusu sana ait değil!',
+                    ephemeral: true
+                });
+            }
+            
+            markReviewDone(topicId, interval);
+            
+            // Butonu devre dışı bırak
+            const updatedComponents = interaction.message.components.map(row => {
+                return ActionRowBuilder.from(row).setComponents(
+                    row.components.map(button => {
+                        const btn = ButtonBuilder.from(button);
+                        if (button.customId === customId) {
+                            btn.setDisabled(true)
+                               .setLabel(`✅ ${topic.topic.substring(0, 30)} (D${interval} Tamam!)`);
+                        }
+                        return btn;
+                    })
+                );
+            });
+            
+            await interaction.update({ components: updatedComponents });
         }
     }
     
@@ -180,6 +258,11 @@ export async function execute(interaction, client) {
                             .setLabel('Başarısız')
                             .setStyle(ButtonStyle.Danger)
                             .setEmoji('❌'),
+                        new ButtonBuilder()
+                            .setCustomId('todo_cancel')
+                            .setLabel('İptal')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setEmoji('🗑️'),
                         new ButtonBuilder()
                             .setCustomId('todo_edit')
                             .setLabel('Düzenle')

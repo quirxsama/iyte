@@ -15,6 +15,12 @@ export const data = new SlashCommandBuilder()
                     .setDescription('Çalıştığın süre (örn: 90 veya 1:30)')
                     .setRequired(true)
             )
+            .addStringOption(option =>
+                option
+                    .setName('tarih')
+                    .setDescription('Hangi gün için (örn: 15.02.2026 veya 15.02, boş=bugün)')
+                    .setRequired(false)
+            )
     )
     .addSubcommand(subcommand =>
         subcommand
@@ -48,6 +54,37 @@ function parseDuration(input) {
     return minutes;
 }
 
+// Tarih parse fonksiyonu: "15.02.2026" veya "15.02" formatını YYYY-MM-DD'ye çevirir
+function parseDate(input) {
+    const trimmed = input.trim();
+    const parts = trimmed.split('.');
+    
+    if (parts.length === 2) {
+        // GG.AA formatı - mevcut yılı kullan
+        const [day, month] = parts.map(Number);
+        if (isNaN(day) || isNaN(month) || day < 1 || day > 31 || month < 1 || month > 12) {
+            return null;
+        }
+        const year = new Date().getFullYear();
+        const date = new Date(year, month - 1, day);
+        if (date.getDate() !== day || date.getMonth() !== month - 1) return null;
+        return date.toISOString().split('T')[0];
+    }
+    
+    if (parts.length === 3) {
+        // GG.AA.YYYY formatı
+        const [day, month, year] = parts.map(Number);
+        if (isNaN(day) || isNaN(month) || isNaN(year) || day < 1 || day > 31 || month < 1 || month > 12 || year < 2020 || year > 2030) {
+            return null;
+        }
+        const date = new Date(year, month - 1, day);
+        if (date.getDate() !== day || date.getMonth() !== month - 1) return null;
+        return date.toISOString().split('T')[0];
+    }
+    
+    return null;
+}
+
 export async function execute(interaction) {
     const subcommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
@@ -56,6 +93,7 @@ export async function execute(interaction) {
     switch (subcommand) {
         case 'ekle': {
             const input = interaction.options.getString('süre');
+            const dateInput = interaction.options.getString('tarih');
             const minutes = parseDuration(input);
             
             if (minutes === null) {
@@ -65,11 +103,23 @@ export async function execute(interaction) {
                 });
             }
             
+            // Tarih parse
+            let targetDate = null;
+            if (dateInput) {
+                targetDate = parseDate(dateInput);
+                if (targetDate === null) {
+                    return interaction.reply({
+                        content: '❌ Geçersiz tarih formatı! Örnek: `15.02.2026` veya `15.02`',
+                        ephemeral: true
+                    });
+                }
+            }
+            
             // Dünkü süreyi al (karşılaştırma için)
             const yesterdayTotal = getYesterdayStudyTime(guildId, userId);
             const beforeAdd = getTodayStudyTime(guildId, userId);
             
-            addStudySession(guildId, userId, minutes);
+            addStudySession(guildId, userId, minutes, targetDate);
             
             const todayTotal = getTodayStudyTime(guildId, userId);
             
