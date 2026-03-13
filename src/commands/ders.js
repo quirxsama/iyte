@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { addStudySession, getTodayStudyTime, getYesterdayStudyTime, getLast7DaysStudy } from '../database/db.js';
+import { addStudySession, getTodayStudyTime, getYesterdayStudyTime, getLast7DaysStudy, removeStudySession } from '../database/db.js';
 import { createSuccessEmbed, createInfoEmbed, formatMinutes } from '../utils/embed.js';
 
 export const data = new SlashCommandBuilder()
@@ -13,6 +13,23 @@ export const data = new SlashCommandBuilder()
                 option
                     .setName('süre')
                     .setDescription('Çalıştığın süre (örn: 90 veya 1:30)')
+                    .setRequired(true)
+            )
+            .addStringOption(option =>
+                option
+                    .setName('tarih')
+                    .setDescription('Hangi gün için (örn: 15.02.2026 veya 15.02, boş=bugün)')
+                    .setRequired(false)
+            )
+    )
+    .addSubcommand(subcommand =>
+        subcommand
+            .setName('kaldir')
+            .setDescription('Fazla eklediğin ders çalışma süresini siler')
+            .addStringOption(option =>
+                option
+                    .setName('süre')
+                    .setDescription('Silinecek süre (örn: 90 veya 1:30)')
                     .setRequired(true)
             )
             .addStringOption(option =>
@@ -176,6 +193,54 @@ export async function execute(interaction) {
                     inline: false
                 });
             }
+            
+            await interaction.reply({ embeds: [embed] });
+            break;
+        }
+        
+        case 'kaldir': {
+            const input = interaction.options.getString('süre');
+            const dateInput = interaction.options.getString('tarih');
+            const minutes = parseDuration(input);
+            
+            if (minutes === null) {
+                return interaction.reply({
+                    content: '❌ Geçersiz süre formatı! Örnek: `90` (dakika) veya `1:30` (saat:dakika)',
+                    ephemeral: true
+                });
+            }
+            
+            // Tarih parse
+            let targetDate = null;
+            if (dateInput) {
+                targetDate = parseDate(dateInput);
+                if (targetDate === null) {
+                    return interaction.reply({
+                        content: '❌ Geçersiz tarih formatı! Örnek: `15.02.2026` veya `15.02`',
+                        ephemeral: true
+                    });
+                }
+            }
+            
+            const result = removeStudySession(guildId, userId, minutes, targetDate);
+            
+            if (result.changes === 0) {
+                return interaction.reply({
+                    content: '❌ Belirtilen süre ve tarihte eklenmiş bir ders kaydı bulunamadı!',
+                    ephemeral: true
+                });
+            }
+            
+            const todayTotal = getTodayStudyTime(guildId, userId);
+            
+            const embed = createSuccessEmbed(
+                'Ders Süresi Silindi',
+                `🗑️ **${formatMinutes(minutes)}** ders çalışma süresi silindi.`
+            ).addFields({
+                name: '📊 Bugünkü Toplam',
+                value: formatMinutes(todayTotal),
+                inline: true
+            });
             
             await interaction.reply({ embeds: [embed] });
             break;

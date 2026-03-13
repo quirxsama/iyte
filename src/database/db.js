@@ -201,6 +201,13 @@ const statements = {
         SELECT date, SUM(duration_minutes) as total
         FROM study_sessions WHERE guild_id = ? AND user_id = ?
         GROUP BY date ORDER BY date DESC LIMIT 7
+    `),
+    removeStudySession: db.prepare(`
+        DELETE FROM study_sessions WHERE id = (
+            SELECT id FROM study_sessions 
+            WHERE guild_id = ? AND user_id = ? AND duration_minutes = ? AND date = ?
+            ORDER BY created_at DESC LIMIT 1
+        )
     `)
 };
 
@@ -372,6 +379,11 @@ export function getUserTotalStudyTime(guildId, userId) {
 
 export function getLast7DaysStudy(guildId, userId) {
     return statements.getLast7DaysStudy.all(guildId, userId);
+}
+
+export function removeStudySession(guildId, userId, durationMinutes, date = null) {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    return statements.removeStudySession.run(guildId, userId, durationMinutes, targetDate);
 }
 
 // Tüm kullanıcıların istatistiklerini al (günlük özet için)
