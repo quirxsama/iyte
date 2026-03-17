@@ -83,6 +83,11 @@ export async function execute(interaction, client) {
             const newStatus = customId === 'todo_complete' ? 'completed' : 'failed';
             updateTodoStatus(messageId, newStatus);
             
+            // Eğer bu todo bir "Tekrar" ise, review_topics tablosunu da güncelle
+            if (todo.is_review) {
+                markReviewDone(todo.review_id, todo.review_interval, newStatus);
+            }
+
             // Embed'i güncelle
             const embed = createTodoEmbed(todo.content, newStatus);
             embed.setFooter({ 

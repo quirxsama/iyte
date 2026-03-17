@@ -58,6 +58,9 @@ db.exec(`
         message_id TEXT UNIQUE,
         content TEXT,
         status TEXT DEFAULT 'pending',
+        is_review INTEGER DEFAULT 0,
+        review_id INTEGER,
+        review_interval TEXT,
         created_at INTEGER
     );
 
@@ -110,9 +113,25 @@ db.exec(`
         d7_done INTEGER DEFAULT 0,
         d14_done INTEGER DEFAULT 0,
         d30_done INTEGER DEFAULT 0,
+        d1_status TEXT DEFAULT 'pending',
+        d7_status TEXT DEFAULT 'pending',
+        d14_status TEXT DEFAULT 'pending',
+        d30_status TEXT DEFAULT 'pending',
+        notes TEXT,
         status TEXT DEFAULT 'active'
     );
+
 `);
+
+// Upgrade script (in case tables exist but columns are missing)
+try { db.prepare("ALTER TABLE todos ADD COLUMN is_review INTEGER DEFAULT 0").run(); } catch(e) {}
+try { db.prepare("ALTER TABLE todos ADD COLUMN review_id INTEGER").run(); } catch(e) {}
+try { db.prepare("ALTER TABLE todos ADD COLUMN review_interval TEXT").run(); } catch(e) {}
+try { db.prepare("ALTER TABLE review_topics ADD COLUMN notes TEXT").run(); } catch(e) {}
+try { db.prepare("ALTER TABLE review_topics ADD COLUMN d1_status TEXT DEFAULT 'pending'").run(); } catch(e) {}
+try { db.prepare("ALTER TABLE review_topics ADD COLUMN d7_status TEXT DEFAULT 'pending'").run(); } catch(e) {}
+try { db.prepare("ALTER TABLE review_topics ADD COLUMN d14_status TEXT DEFAULT 'pending'").run(); } catch(e) {}
+try { db.prepare("ALTER TABLE review_topics ADD COLUMN d30_status TEXT DEFAULT 'pending'").run(); } catch(e) {}
 
 // Prepared statements
 const statements = {
@@ -155,8 +174,8 @@ const statements = {
 
     // Todos
     createTodo: db.prepare(`
-        INSERT INTO todos (guild_id, user_id, message_id, content, status, created_at)
-        VALUES (?, ?, ?, ?, 'pending', ?)
+        INSERT INTO todos (guild_id, user_id, message_id, content, status, is_review, review_id, review_interval, created_at)
+        VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)
     `),
     getTodoByMessageId: db.prepare('SELECT * FROM todos WHERE message_id = ?'),
     updateTodoStatus: db.prepare('UPDATE todos SET status = ? WHERE message_id = ?'),
@@ -258,8 +277,8 @@ export function getGuildVoiceLeaderboard(guildId) {
 }
 
 // Todo functions
-export function createTodo(guildId, userId, messageId, content) {
-    return statements.createTodo.run(guildId, userId, messageId, content, Date.now());
+export function createTodo(guildId, userId, messageId, content, isReview = 0, reviewId = null, reviewInterval = null) {
+    return statements.createTodo.run(guildId, userId, messageId, content, isReview, reviewId, reviewInterval, Date.now());
 }
 
 export function getTodoByMessageId(messageId) {
@@ -508,9 +527,9 @@ export function getUserDetailedStats(guildId, userId) {
 }
 
 // === Tekrar Sistemi (Spaced Repetition) ===
-export function addReviewTopic(guildId, userId, topic) {
-    const now = new Date();
-    const createdAt = now.toISOString().split('T')[0];
+export function addReviewTopic(guildId, userId, topic, startDate = null, activeIntervals = ['d1', 'd7', 'd14', 'd30']) {
+    const baseDate = startDate ? new Date(startDate) : new Date();
+    const createdAt = new Date().toISOString().split('T')[0];
     
     const addDays = (date, days) => {
         const d = new Date(date);
@@ -518,16 +537,41 @@ export function addReviewTopic(guildId, userId, topic) {
         return d.toISOString().split('T')[0];
     };
     
-    const d1 = addDays(now, 1);
-    const d7 = addDays(now, 7);
-    const d14 = addDays(now, 14);
-    const d30 = addDays(now, 30);
+    const d1 = addDays(baseDate, 1);
+    const d7 = addDays(baseDate, 7);
+    const d14 = addDays(baseDate, 14);
+    const d30 = addDays(baseDate, 30);
     
+    const d1_status = activeIntervals.includes('d1') ? 'pending' : 'skipped';
+    const d7_status = activeIntervals.includes('d7') ? 'pending' : 'skipped';
+    const d14_status = activeIntervals.includes('d14') ? 'pending' : 'skipped';
+    const d30_status = activeIntervals.includes('d30') ? 'pending' : 'skipped';
+
+    const d1_done = activeIntervals.includes('d1') ? 0 : 1;
+    const d7_done = activeIntervals.includes('d7') ? 0 : 1;
+    const d14_done = activeIntervals.includes('d14') ? 0 : 1;
+    const d30_done = activeIntervals.includes('d30') ? 0 : 1;
+
     const stmt = db.prepare(`
-        INSERT INTO review_topics (guild_id, user_id, topic, created_at, d1_date, d7_date, d14_date, d30_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO review_topics (guild_id, user_id, topic, created_at, d1_date, d7_date, d14_date, d30_date, d1_status, d7_status, d14_status, d30_status, d1_done, d7_done, d14_done, d30_done)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    return stmt.run(guildId, userId, topic, createdAt, d1, d7, d14, d30);
+    return stmt.run(guildId, userId, topic, createdAt, d1, d7, d14, d30, d1_status, d7_status, d14_status, d30_status, d1_done, d7_done, d14_done, d30_done);
+}
+
+export function searchReviewTopics(guildId, userId, query) {
+    const stmt = db.prepare(`
+        SELECT * FROM review_topics
+        WHERE guild_id = ? AND user_id = ? AND status = 'active'
+        AND topic LIKE ?
+        ORDER BY created_at DESC
+    `);
+    return stmt.all(guildId, userId, `%${query}%`);
+}
+
+export function updateReviewTopicNote(topicId, userId, notes) {
+    const stmt = db.prepare('UPDATE review_topics SET notes = ? WHERE id = ? AND user_id = ?');
+    return stmt.run(notes, topicId, userId);
 }
 
 export function getReviewTopicsByUser(guildId, userId) {
@@ -571,13 +615,14 @@ export function getAllDueReviewsToday(date = null) {
     return stmt.all(today, today, today, today);
 }
 
-export function markReviewDone(topicId, interval) {
-    const column = `d${interval}_done`;
+export function markReviewDone(topicId, interval, status = 'completed') {
+    const columnDone = `d${interval}_done`;
+    const columnStatus = `d${interval}_status`;
     const validColumns = ['d1_done', 'd7_done', 'd14_done', 'd30_done'];
-    if (!validColumns.includes(column)) return null;
+    if (!validColumns.includes(columnDone)) return null;
     
-    const stmt = db.prepare(`UPDATE review_topics SET ${column} = 1 WHERE id = ?`);
-    return stmt.run(topicId);
+    const stmt = db.prepare(`UPDATE review_topics SET ${columnDone} = 1, ${columnStatus} = ? WHERE id = ?`);
+    return stmt.run(status, topicId);
 }
 
 export function deleteReviewTopic(topicId, userId) {
