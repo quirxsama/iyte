@@ -1,4 +1,5 @@
-import { SlashCommandBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { SlashCommandBuilder } = pkg;
 import { getChain, incrementChain, breakChain } from '../database/db.js';
 import { createChainEmbed, createInfoEmbed } from '../utils/embed.js';
 

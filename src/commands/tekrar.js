@@ -1,11 +1,14 @@
-import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import pkg from 'discord.js';
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = pkg;
 import { 
     addReviewTopic, 
     getReviewTopicsByUser, 
     getDueReviews, 
     markReviewDone, 
     deleteReviewTopic,
-    getReviewTopicById
+    getReviewTopicById,
+    searchReviewTopics,
+    updateReviewTopicNote
 } from '../database/db.js';
 import { createSuccessEmbed, createInfoEmbed, createErrorEmbed } from '../utils/embed.js';
 
@@ -22,6 +25,46 @@ export const data = new SlashCommandBuilder()
                     .setDescription('Tekrar edilecek konu adı')
                     .setRequired(true)
                     .setMaxLength(200)
+            )
+            .addStringOption(option =>
+                option
+                    .setName('tarih')
+                    .setDescription('Başlangıç tarihi (YYYY-AA-GG) Opsiyonel, varsayılan: Bugün')
+                    .setRequired(false)
+            )
+            .addBooleanOption(option =>
+                option
+                    .setName('hepsi')
+                    .setDescription('Tüm aralıkları (D1, D7, D14, D30) otomatik seçmek için True yapın.')
+                    .setRequired(false)
+            )
+    )
+    .addSubcommand(subcommand =>
+        subcommand
+            .setName('ara')
+            .setDescription('Tekrar konularında arama yap')
+            .addStringOption(option =>
+                option
+                    .setName('kelime')
+                    .setDescription('Aranacak kelime')
+                    .setRequired(true)
+            )
+    )
+    .addSubcommand(subcommand =>
+        subcommand
+            .setName('not')
+            .setDescription('Tekrar konusuna not ekle')
+            .addIntegerOption(option =>
+                option
+                    .setName('id')
+                    .setDescription('Not eklenecek konunun ID numarası')
+                    .setRequired(true)
+            )
+            .addStringOption(option =>
+                option
+                    .setName('metin')
+                    .setDescription('Notunuz')
+                    .setRequired(true)
             )
     )
     .addSubcommand(subcommand =>
@@ -54,29 +97,144 @@ export async function execute(interaction) {
     switch (subcommand) {
         case 'ekle': {
             const topic = interaction.options.getString('konu');
-            const result = addReviewTopic(guildId, userId, topic);
-            
-            const now = new Date();
-            const addDays = (days) => {
-                const d = new Date(now);
-                d.setDate(d.getDate() + days);
-                return d.toISOString().split('T')[0];
-            };
+            const dateInput = interaction.options.getString('tarih');
+            const isAll = interaction.options.getBoolean('hepsi') ?? false;
 
-            const embed = createSuccessEmbed(
-                'Tekrar Konusu Eklendi',
-                `📚 **${topic}** konusu tekrar listesine eklendi!`
-            ).addFields(
-                { name: '📅 Tekrar Takvimi', value: 
-                    `🔹 **D1** (1 gün sonra): \`${addDays(1)}\`\n` +
-                    `🔹 **D7** (7 gün sonra): \`${addDays(7)}\`\n` +
-                    `🔹 **D14** (14 gün sonra): \`${addDays(14)}\`\n` +
-                    `🔹 **D30** (30 gün sonra): \`${addDays(30)}\``,
-                    inline: false 
-                },
-                { name: '💡 Bilgi', value: 'Her tekrar gününde sabah DM ile hatırlatma alacaksın!', inline: false }
-            ).setColor(0x9b59b6);
+            let startDate = null;
+            if (dateInput) {
+                const parsedDate = new Date(dateInput);
+                if (isNaN(parsedDate.getTime())) {
+                    return interaction.reply({ embeds: [createErrorEmbed('Hata', 'Geçersiz tarih formatı. Lütfen YYYY-AA-GG formatında girin.')], ephemeral: true });
+                }
+                startDate = parsedDate.toISOString().split('T')[0];
+            } else {
+                startDate = new Date().toISOString().split('T')[0];
+            }
 
+            if (isAll) {
+                addReviewTopic(guildId, userId, topic, startDate, ['d1', 'd7', 'd14', 'd30']);
+
+                const addDays = (days) => {
+                    const d = new Date(startDate);
+                    d.setDate(d.getDate() + days);
+                    return d.toISOString().split('T')[0];
+                };
+
+                const embed = createSuccessEmbed(
+                    'Tekrar Konusu Eklendi',
+                    `📚 **${topic}** konusu tekrar listesine eklendi!`
+                ).addFields(
+                    { name: '📅 Tekrar Takvimi', value:
+                        `🔹 **D1** (1 gün sonra): \`${addDays(1)}\`\n` +
+                        `🔹 **D7** (7 gün sonra): \`${addDays(7)}\`\n` +
+                        `🔹 **D14** (14 gün sonra): \`${addDays(14)}\`\n` +
+                        `🔹 **D30** (30 gün sonra): \`${addDays(30)}\``,
+                        inline: false
+                    },
+                    { name: '💡 Bilgi', value: 'Her tekrar gününde To-Do kanalına otomatik olarak gönderilecek.', inline: false }
+                ).setColor(0x9b59b6);
+
+                return interaction.reply({ embeds: [embed] });
+            } else {
+                const selectMenu = new StringSelectMenuBuilder()
+                    .setCustomId('tekrar_ekle_aralik')
+                    .setPlaceholder('Hangi tekrar günlerini seçmek istersin?')
+                    .setMinValues(1)
+                    .setMaxValues(5)
+                    .addOptions([
+                        { label: 'D1 (1 Gün)', value: 'd1' },
+                        { label: 'D7 (7 Gün)', value: 'd7' },
+                        { label: 'D14 (14 Gün)', value: 'd14' },
+                        { label: 'D30 (30 Gün)', value: 'd30' },
+                        { label: 'Hepsi', value: 'all', description: 'Tüm aralıkları seçer' }
+                    ]);
+
+                const row = new ActionRowBuilder().addComponents(selectMenu);
+
+                const embed = createInfoEmbed(
+                    'Aralık Seçimi',
+                    `**Konu:** ${topic}\n**Tarih:** ${startDate}\n\nLütfen bu konu için uygulamak istediğiniz tekrar günlerini seçin.`
+                );
+
+                const message = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+
+                const filter = i => i.customId === 'tekrar_ekle_aralik' && i.user.id === userId;
+                const collector = message.createMessageComponentCollector({ filter, time: 60000 });
+
+                collector.on('collect', async i => {
+                    let selected = i.values;
+                    if (selected.includes('all')) {
+                        selected = ['d1', 'd7', 'd14', 'd30'];
+                    }
+
+                    addReviewTopic(guildId, userId, topic, startDate, selected);
+
+                    const addDays = (days) => {
+                        const d = new Date(startDate);
+                        d.setDate(d.getDate() + days);
+                        return d.toISOString().split('T')[0];
+                    };
+
+                    let valueStr = '';
+                    if (selected.includes('d1')) valueStr += `🔹 **D1**: \`${addDays(1)}\`\n`;
+                    if (selected.includes('d7')) valueStr += `🔹 **D7**: \`${addDays(7)}\`\n`;
+                    if (selected.includes('d14')) valueStr += `🔹 **D14**: \`${addDays(14)}\`\n`;
+                    if (selected.includes('d30')) valueStr += `🔹 **D30**: \`${addDays(30)}\`\n`;
+
+                    const resEmbed = createSuccessEmbed('Tekrar Konusu Eklendi', `📚 **${topic}** konusu eklendi!`)
+                        .addFields(
+                            { name: '📅 Seçilen Takvim', value: valueStr || 'Seçim yok', inline: false }
+                        );
+
+                    await i.update({ embeds: [resEmbed], components: [] });
+                });
+
+                collector.on('end', collected => {
+                    if (collected.size === 0) {
+                        interaction.editReply({ content: 'Zaman aşımına uğradı. Lütfen komutu tekrar kullanın.', embeds: [], components: [] }).catch(() => {});
+                    }
+                });
+            }
+            break;
+        }
+
+        case 'ara': {
+            const query = interaction.options.getString('kelime');
+            const results = searchReviewTopics(guildId, userId, query);
+
+            if (results.length === 0) {
+                return interaction.reply({ embeds: [createInfoEmbed('Sonuç Bulunamadı', `"${query}" kelimesini içeren bir tekrar konusu bulunamadı.`)], ephemeral: true });
+            }
+
+            let description = '';
+            for (const t of results) {
+                description += `**#${t.id}** ${t.topic}\n`;
+                description += `D1: ${t.d1_date} | D7: ${t.d7_date} | D14: ${t.d14_date} | D30: ${t.d30_date}\n`;
+                if (t.notes) description += `📝 Not: ${t.notes}\n`;
+                description += '\n';
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle(`🔍 Arama Sonuçları: "${query}"`)
+                .setDescription(description)
+                .setColor(0x3498db);
+
+            await interaction.reply({ embeds: [embed] });
+            break;
+        }
+
+        case 'not': {
+            const id = interaction.options.getInteger('id');
+            const noteText = interaction.options.getString('metin');
+
+            const topic = getReviewTopicById(id);
+            if (!topic || topic.user_id !== userId) {
+                return interaction.reply({ embeds: [createErrorEmbed('Bulunamadı', 'Bu ID ile sana ait bir konu bulunamadı.')], ephemeral: true });
+            }
+
+            updateReviewTopicNote(id, userId, noteText);
+
+            const embed = createSuccessEmbed('Not Eklendi', `**#${id} ${topic.topic}** konusuna not eklendi:\n\n*${noteText}*`);
             await interaction.reply({ embeds: [embed] });
             break;
         }

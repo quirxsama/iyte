@@ -1,4 +1,5 @@
-import { EmbedBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { EmbedBuilder } = pkg;
 import { 
     getAllUsersStats, 
     getChain, 
@@ -53,6 +54,13 @@ function getRandomMessage(messages) {
 export async function sendNightlyReminders(client) {
     const today = new Date().toISOString().split('T')[0];
     
+    // YKS Days left (for Gemini context)
+    let yksDaysLeft = 0;
+    try {
+        const { getDaysUntilYKS } = await import('./countdown.js');
+        yksDaysLeft = getDaysUntilYKS();
+    } catch(e) {}
+
     // Tüm sunucuları kontrol et
     for (const guild of client.guilds.cache.values()) {
         const userIds = getAllUsersStats(guild.id);
@@ -95,20 +103,39 @@ export async function sendNightlyReminders(client) {
                 // DM gönder
                 const user = await client.users.fetch(userId);
                 if (!user) continue;
-                
+
                 let description = '';
-                for (const issue of issues) {
-                    const emoji = issue.type === 'chain' ? '🔗' : issue.type === 'study' ? '📚' : '✅';
-                    description += `${emoji} ${issue.message}\n\n`;
+                
+                try {
+                    const { askGemini, generatePersonaPrompt } = await import('../utils/ai.js');
+                    const missingItemsStr = issues.map(i => i.type).join(', ');
+                    const prompt = generatePersonaPrompt({
+                        chain: chain?.chain_count,
+                        yksDaysLeft: yksDaysLeft,
+                        totalStudyTime: todayStudy,
+                        pendingTodos: todoStats?.pending,
+                        completedTodos: todoStats?.completed
+                    }, `Şu an saat 23:30. Bu öğrenci bugün şu konularda eksik kaldı: ${missingItemsStr}. Ona gece uyumadan önce neden ders çalışması gerektiğini, bu eksikliklerle hedefine (İYTE) ulaşamayacağını sert bir dille ama içten içe sevdiğini belli ederek kısa (maksimum 4-5 cümle) bir mesaj yaz.`);
+
+                    const aiQuote = await askGemini(prompt);
+                    if (aiQuote && !aiQuote.includes("Sistemde Gemini API Key tanımlı değil")) {
+                        description = aiQuote;
+                    } else {
+                        throw new Error("Fallback to static messages");
+                    }
+                } catch(e) {
+                    for (const issue of issues) {
+                        const emoji = issue.type === 'chain' ? '🔗' : issue.type === 'study' ? '📚' : '✅';
+                        description += `${emoji} ${issue.message}\n\n`;
+                    }
+                    description += '---\n💪 *Yarın daha iyi ol. Kendini kandırma.*';
                 }
                 
-                description += '---\n💪 *Yarın daha iyi ol. Kendini kandırma.*';
-                
                 const embed = new EmbedBuilder()
-                    .setTitle('⚠️ Gece Kontrolü — Bugün Eksiklerin Var')
+                    .setTitle('⚠️ Gece Kontrolü — Hoca Konuşuyor')
                     .setDescription(description)
                     .setColor(0xe74c3c)
-                    .setFooter({ text: '🎓 İYTE seni bekliyor. Ama beklemekten yorulabilir.' })
+                    .setFooter({ text: '🎓 İYTE seni bekliyor. Ama beklemekten yorulabilir. | Yapay Zeka Destekli' })
                     .setTimestamp();
                 
                 // Bugünkü durumu özet olarak ekle

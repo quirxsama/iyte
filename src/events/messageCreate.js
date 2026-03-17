@@ -1,4 +1,5 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import pkg from 'discord.js';
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = pkg;
 import { isTodoChannel, createTodo } from '../database/db.js';
 import { createTodoEmbed } from '../utils/embed.js';
 

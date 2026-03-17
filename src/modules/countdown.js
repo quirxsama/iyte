@@ -1,4 +1,5 @@
-import { EmbedBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { EmbedBuilder } = pkg;
 import { getRandomQuote } from './motivationalQuotes.js';
 import { getAllGuildsWithCountdown } from '../database/db.js';
 
@@ -22,9 +23,8 @@ export function getDaysUntilMSU() {
     return diffDays;
 }
 
-export function createCountdownEmbed() {
+export async function createCountdownEmbed() {
     const daysLeft = getDaysUntilYKS();
-    const quote = getRandomQuote();
     
     let title, color;
     
@@ -47,12 +47,24 @@ export function createCountdownEmbed() {
         title = `✅ YKS Tamamlandı!`;
         color = 0x95a5a6; // Gri
     }
+
+    let quote = getRandomQuote();
+    try {
+        const { askGemini, generatePersonaPrompt } = await import('../utils/ai.js');
+        const prompt = generatePersonaPrompt({ yksDaysLeft: daysLeft }, `Bugün günlerden geri sayım. Öğrencilere toplu olarak kısa, çok sert ama motive edici bir günaydın/geri sayım mesajı ver. En fazla 3 cümle olsun.`);
+        const aiQuote = await askGemini(prompt);
+        if (aiQuote && !aiQuote.includes("Sistemde Gemini API Key tanımlı değil")) {
+            quote = aiQuote;
+        }
+    } catch(e) {
+        console.error("Gemini geri sayım mesajı üretemedi:", e);
+    }
     
     const embed = new EmbedBuilder()
         .setTitle(title)
         .setDescription(quote)
         .setColor(color)
-        .setFooter({ text: '🎓 İYTE hedefine doğru!' })
+        .setFooter({ text: '🎓 İYTE hedefine doğru! | Yapay Zeka Destekli' })
         .setTimestamp();
     
     if (daysLeft > 0) {
@@ -128,7 +140,7 @@ export async function sendDailyCountdown(client) {
             const channel = await client.channels.fetch(guildSettings.countdown_channel_id);
             if (channel) {
                 // YKS geri sayımı
-                const yksEmbed = createCountdownEmbed();
+                const yksEmbed = await createCountdownEmbed();
                 await channel.send({ embeds: [yksEmbed] });
                 
                 // MSÜ geri sayımı (eğer henüz bitmemişse)
