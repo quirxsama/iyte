@@ -1,4 +1,5 @@
-import { SlashCommandBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { SlashCommandBuilder } = pkg;
 import { createMSUCountdownEmbed } from '../modules/countdown.js';
 
 export const data = new SlashCommandBuilder()

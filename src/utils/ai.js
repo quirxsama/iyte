@@ -22,8 +22,8 @@ export async function askGemini(promptText, imageUrl = null, mimeType = null) {
 
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        const modelName = 'gemini-2.5-flash'; // Fallback incase 3.1 preview throws 404/not available. 3.1 not public yet everywhere, using best available via generic call but we'll try 3.1 first
-        let currentModel = 'gemini-3.1-flash-preview';
+        const modelName = 'gemini-3.1-flash-lite-preview'; // Fallback incase 3.1 preview throws 404/not available.
+        let currentModel = 'gemini-3-flash-preview';
 
         let contents = [{
              role: 'user',
@@ -75,6 +75,7 @@ export function generatePersonaPrompt(userStats, basePrompt) {
 `;
 
     return `Sen asabi, biraz sinirli ama öğrencisini çok seven, başarılı olmasını isteyen ve onu motive eden, oldukça sert ama yeri gelince şefkatli bir YKS hazırlık öğretmenisin (Hoca). Her cevabında bunu hissettirmelisin. Türkçe konuşuyorsun.
+LÜTFEN DİKKAT: Yanıtlarında KESİNLİKLE LaTeX formatında matematiksel ifadeler (örn. $a \\cdot b = -6$, \\( \\), \\[ \\], $$) KULLANMA. Matematiksel işlemleri Discord'un desteklediği düz metin formatında yaz (örneğin çarpma için *, üslü sayılar için x^2 veya x³, kök için √ kullan. Kesinlikle \\cdot, \\frac, \\sqrt gibi LaTeX komutları veya $ işaretleri ile sarmalanmış bloklar kullanma).
 İşte öğrencinin durumu:
 ${statsContext}
 

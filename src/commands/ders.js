@@ -1,4 +1,5 @@
-import { SlashCommandBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { SlashCommandBuilder } = pkg;
 import { addStudySession, getTodayStudyTime, getYesterdayStudyTime, getLast7DaysStudy, removeStudySession } from '../database/db.js';
 import { createSuccessEmbed, createInfoEmbed, formatMinutes } from '../utils/embed.js';
 

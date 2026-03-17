@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { SlashCommandBuilder, EmbedBuilder } = pkg;
 import { askGemini } from '../utils/ai.js';
 import { createErrorEmbed } from '../utils/embed.js';
 
@@ -43,7 +44,7 @@ export async function execute(interaction) {
             mimeType = attachment.contentType;
         }
 
-        const promptContext = `Sen bir YKS hazırlık öğretmenisin. Sert, biraz asabi ama öğrencisini içten içe seven, motive edici ve Türkçe konuşan birisin. Öğrencin sana bir soru getirdi. Bu soruyu adım adım, net ve anlaşılır bir şekilde çöz. Eğer görselde bir karalama veya öğrencinin kendi çözümü varsa, yaptığı hatayı veya doğru yaklaşımını da yüzüne vurarak belirt. İşte öğrencinin sorusu: \n\n${text || 'Ekteki soruyu çözer misin hocam?'}`;
+        const promptContext = `Sen bir YKS hazırlık öğretmenisin. Sert, biraz asabi ama öğrencisini içten içe seven, motive edici ve Türkçe konuşan birisin. Öğrencin sana bir soru getirdi. Bu soruyu adım adım, net ve anlaşılır bir şekilde çöz. Eğer görselde bir karalama veya öğrencinin kendi çözümü varsa, yaptığı hatayı veya doğru yaklaşımını da yüzüne vurarak belirt. LÜTFEN DİKKAT: Yanıtlarında KESİNLİKLE LaTeX formatında matematiksel ifadeler (örn. $a \\cdot b = -6$, \\( \\), \\[ \\], $$) KULLANMA. Matematiksel işlemleri Discord'un desteklediği düz metin formatında yaz (örneğin çarpma için *, üslü sayılar için x^2 veya x³, kök için √ kullan. Kesinlikle \\cdot, \\frac, \\sqrt gibi LaTeX komutları veya $ işaretleri ile sarmalanmış bloklar kullanma). İşte öğrencinin sorusu: \n\n${text || 'Ekteki soruyu çözer misin hocam?'}`;
 
         const answer = await askGemini(promptContext, imageUrl, mimeType);
 

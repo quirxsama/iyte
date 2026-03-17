@@ -1,4 +1,5 @@
-import { EmbedBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { EmbedBuilder } = pkg;
 import { getRandomQuote } from './motivationalQuotes.js';
 import { getAllGuildsWithCountdown } from '../database/db.js';
 

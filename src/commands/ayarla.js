@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
+import pkg from 'discord.js';
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = pkg;
 import { 
     updateGuildChannel, 
     getGuildSettings, 

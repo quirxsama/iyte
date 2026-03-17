@@ -1,4 +1,5 @@
-import { EmbedBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { EmbedBuilder } = pkg;
 import { getAllUsersStats, getUserDetailedStats } from '../database/db.js';
 
 export async function sendWeeklyReports(client) {

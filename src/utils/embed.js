@@ -1,4 +1,5 @@
-import { EmbedBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { EmbedBuilder } = pkg;
 
 // Zaman formatlama yardımcıları
 export function formatDuration(seconds) {

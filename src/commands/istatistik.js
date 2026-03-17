@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import pkg from 'discord.js';
+const { SlashCommandBuilder, EmbedBuilder } = pkg;
 import { getUserDetailedStats } from '../database/db.js';
 import { formatDuration, formatMinutes } from '../utils/embed.js';
 

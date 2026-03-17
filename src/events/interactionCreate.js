@@ -1,4 +1,5 @@
-import { Collection, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import pkg from 'discord.js';
+const { Collection, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } = pkg;
 import { getTodoByMessageId, updateTodoStatus, updateTodoContent, deleteTodo, markReviewDone, getReviewTopicById } from '../database/db.js';
 import { createTodoEmbed } from '../utils/embed.js';
 
