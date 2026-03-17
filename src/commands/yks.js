@@ -7,6 +7,7 @@ export const data = new SlashCommandBuilder()
     .setDescription('YKS geri sayımını göster');
 
 export async function execute(interaction) {
-    const embed = createCountdownEmbed();
-    await interaction.reply({ embeds: [embed] });
+    await interaction.deferReply();
+    const embed = await createCountdownEmbed();
+    await interaction.editReply({ embeds: [embed] });
 }
