@@ -7,7 +7,7 @@ import { getAllGuildsWithCountdown } from '../database/db.js';
 const YKS_DATE = new Date('2027-06-19T10:00:00+03:00');
 
 // MSÜ Tarihi: 1 Mart 2026, 10:15
-const MSU_DATE = new Date('2026-03-07T10:15:00+03:00');
+const MSU_DATE = new Date('2027-03-07T10:15:00+03:00');
 
 export function getDaysUntilYKS() {
     const now = new Date();
