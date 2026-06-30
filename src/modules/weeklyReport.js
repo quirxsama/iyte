@@ -20,25 +20,7 @@ export async function sendWeeklyReports(client) {
                 const stats = getUserDetailedStats(guild.id, userId);
 
                 let reportContent = '';
-                try {
-                    const { askGemini, generatePersonaPrompt } = await import('../utils/ai.js');
-                    const prompt = generatePersonaPrompt({
-                        chain: stats.chain?.current,
-                        yksDaysLeft: yksDaysLeft,
-                        totalStudyTime: stats.study?.total,
-                        pendingTodos: stats.todos?.pending,
-                        completedTodos: stats.todos?.completed
-                    }, `Bugün Pazar günü. Bu öğrenciye haftalık bir "Karne" (haftalık değerlendirme raporu) ver. Geçen hafta gösterdiği performansa dair, özellikle tamamlanmayan görevler, toplam çalışma süresi, chain sayısını yorumla. Çok sert, yüzüne vuran ama sonunda toparlaması için sertçe motive eden bir dille konuş.`);
-
-                    const aiReport = await askGemini(prompt);
-                    if (aiReport && !aiReport.includes("Sistemde Gemini API Key tanımlı değil")) {
-                        reportContent = aiReport;
-                    } else {
-                        throw new Error('Gemini fallback');
-                    }
-                } catch(e) {
-                    reportContent = 'Geçtiğimiz hafta pek parlak değildi evlat. Kendini toparlamazsan İYTE sadece bir hayal olur. Şimdi git haftalık eksiklerini kapat!';
-                }
+                reportContent = 'Geçtiğimiz hafta pek parlak değildi evlat. Kendini toparlamazsan İYTE sadece bir hayal olur. Şimdi git haftalık eksiklerini kapat!';
 
                 const embed = new EmbedBuilder()
                     .setTitle('📊 Haftalık Hoca Karnesi')
@@ -48,7 +30,7 @@ export async function sendWeeklyReports(client) {
                         { name: 'Çalışma İstatistikleri', value: `Toplam Ders Süresi: ${stats.study?.total || 0} dk\nGüncel Zincir: ${stats.chain?.current || 0}`, inline: false },
                         { name: 'Görev İstatistikleri', value: `Tamamlanan Görev: ${stats.todos?.completed || 0}\nBekleyen Görev: ${stats.todos?.pending || 0}`, inline: false }
                     )
-                    .setFooter({ text: '📉 Her hafta daha iyi olmak zorundasın. | Yapay Zeka Destekli' })
+                    .setFooter({ text: '📉 Her hafta daha iyi olmak zorundasın.' })
                     .setTimestamp();
 
                 await user.send({ embeds: [embed] });

@@ -106,36 +106,18 @@ export async function sendNightlyReminders(client) {
 
                 let description = '';
                 
-                try {
-                    const { askGemini, generatePersonaPrompt } = await import('../utils/ai.js');
-                    const missingItemsStr = issues.map(i => i.type).join(', ');
-                    const prompt = generatePersonaPrompt({
-                        chain: chain?.chain_count,
-                        yksDaysLeft: yksDaysLeft,
-                        totalStudyTime: todayStudy,
-                        pendingTodos: todoStats?.pending,
-                        completedTodos: todoStats?.completed
-                    }, `Şu an saat 23:30. Bu öğrenci bugün şu konularda eksik kaldı: ${missingItemsStr}. Ona gece uyumadan önce neden ders çalışması gerektiğini, bu eksikliklerle hedefine (İYTE) ulaşamayacağını sert bir dille ama içten içe sevdiğini belli ederek kısa (maksimum 4-5 cümle) bir mesaj yaz.`);
-
-                    const aiQuote = await askGemini(prompt);
-                    if (aiQuote && !aiQuote.includes("Sistemde Gemini API Key tanımlı değil")) {
-                        description = aiQuote;
-                    } else {
-                        throw new Error("Fallback to static messages");
-                    }
-                } catch(e) {
-                    for (const issue of issues) {
-                        const emoji = issue.type === 'chain' ? '🔗' : issue.type === 'study' ? '📚' : '✅';
-                        description += `${emoji} ${issue.message}\n\n`;
-                    }
-                    description += '---\n💪 *Yarın daha iyi ol. Kendini kandırma.*';
+                for (const issue of issues) {
+                    const emoji = issue.type === 'chain' ? '🔗' : issue.type === 'study' ? '📚' : '✅';
+                    description += `${emoji} ${issue.message}\n\n`;
                 }
+                description += '---\n💪 *Yarın daha iyi ol. Kendini kandırma.*';
+                
                 
                 const embed = new EmbedBuilder()
                     .setTitle('⚠️ Gece Kontrolü — Hoca Konuşuyor')
                     .setDescription(description)
                     .setColor(0xe74c3c)
-                    .setFooter({ text: '🎓 İYTE seni bekliyor. Ama beklemekten yorulabilir. | Yapay Zeka Destekli' })
+                    .setFooter({ text: '🎓 İYTE seni bekliyor. Ama beklemekten yorulabilir.' })
                     .setTimestamp();
                 
                 // Bugünkü durumu özet olarak ekle

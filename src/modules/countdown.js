@@ -4,10 +4,10 @@ import { getRandomQuote } from './motivationalQuotes.js';
 import { getAllGuildsWithCountdown } from '../database/db.js';
 
 // YKS Tarihi: 20 Haziran 2026
-const YKS_DATE = new Date('2026-06-20T10:00:00+03:00');
+const YKS_DATE = new Date('2027-06-19T10:00:00+03:00');
 
 // MSÜ Tarihi: 1 Mart 2026, 10:15
-const MSU_DATE = new Date('2026-03-01T10:15:00+03:00');
+const MSU_DATE = new Date('2026-03-07T10:15:00+03:00');
 
 export function getDaysUntilYKS() {
     const now = new Date();
@@ -49,22 +49,12 @@ export async function createCountdownEmbed() {
     }
 
     let quote = getRandomQuote();
-    try {
-        const { askGemini, generatePersonaPrompt } = await import('../utils/ai.js');
-        const prompt = generatePersonaPrompt({ yksDaysLeft: daysLeft }, `Bugün günlerden geri sayım. Öğrencilere toplu olarak kısa, çok sert ama motive edici bir günaydın/geri sayım mesajı ver. En fazla 3 cümle olsun.`);
-        const aiQuote = await askGemini(prompt);
-        if (aiQuote && !aiQuote.includes("Sistemde Gemini API Key tanımlı değil")) {
-            quote = aiQuote;
-        }
-    } catch(e) {
-        console.error("Gemini geri sayım mesajı üretemedi:", e);
-    }
     
     const embed = new EmbedBuilder()
         .setTitle(title)
         .setDescription(quote)
         .setColor(color)
-        .setFooter({ text: '🎓 İYTE hedefine doğru! | Yapay Zeka Destekli' })
+        .setFooter({ text: '🎓 İYTE hedefine doğru!' })
         .setTimestamp();
     
     if (daysLeft > 0) {
@@ -139,7 +129,6 @@ export async function sendDailyCountdown(client) {
         try {
             const channel = await client.channels.fetch(guildSettings.countdown_channel_id);
             if (channel) {
-                // YKS geri sayımı
                 const yksEmbed = await createCountdownEmbed();
                 await channel.send({ embeds: [yksEmbed] });
                 
